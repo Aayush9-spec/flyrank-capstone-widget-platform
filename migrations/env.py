@@ -12,16 +12,20 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+migration_url = (
+    settings.DATABASE_URL_UNPOOLED or settings.DATABASE_URL
+).replace("postgresql://", "postgresql+psycopg://", 1)
+
 config.set_main_option(
     "sqlalchemy.url",
-    settings.DATABASE_URL.replace("%", "%%"),
+    migration_url.replace("%", "%%"),
 )
 
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = settings.DATABASE_URL
+    url = migration_url
     context.configure(
         url=url,
         target_metadata=target_metadata,

@@ -247,3 +247,5 @@ venv/
 *.log
 coverage/
 htmlcov/
+.neon
+node_modules/
