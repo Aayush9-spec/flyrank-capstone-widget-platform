@@ -149,7 +149,8 @@ def process_one_job() -> bool:
         return True
 
     except Exception as exc:
-        error = str(exc)[:1000]
+        error_type = type(exc).__name__
+        error = f"Notification delivery failed ({error_type})"
         terminal = False
 
         with SessionLocal() as db:
@@ -170,7 +171,11 @@ def process_one_job() -> bool:
 
                 db.commit()
 
-        logger.exception("Notification job %s failed", job_id)
+        logger.error(
+            "Notification job %s failed with exception type %s",
+            job_id,
+            error_type,
+        )
 
         if terminal:
             alert_terminal_failure(job_id, error)

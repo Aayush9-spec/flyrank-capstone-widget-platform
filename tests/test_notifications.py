@@ -119,7 +119,8 @@ def test_retry_after_delivery_failure(db_setup, monkeypatch):
     job = get_job(db_setup)
     assert job.status == "retry"
     assert job.attempts == 1
-    assert "Temporary delivery failure" in job.last_error
+    assert job.last_error == "Notification delivery failed (RuntimeError)"
+    assert "Temporary delivery failure" not in job.last_error
     assert job.next_attempt_at is not None
 
 
