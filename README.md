@@ -253,7 +253,7 @@ node --check widget/widget.js
 alembic check
 ```
 
-The current automated suite includes notification success/skip, retry, permanent failure alert, and expired-job recovery tests.
+The automated suite contains 40 tests covering API integration, tenant isolation, widget submissions, request-size limits, geo-enrichment fallback, and notification delivery and retries. The latest verified run passed all 40 tests with 90% application coverage.
 
 See [EVIDENCE.md](EVIDENCE.md) for implementation verification details and manual integration checks.
 

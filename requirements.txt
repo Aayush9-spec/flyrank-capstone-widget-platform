@@ -9,4 +9,5 @@ slowapi
 email-validator
 httpx
 pytest
+pytest-cov
 pytest-asyncio

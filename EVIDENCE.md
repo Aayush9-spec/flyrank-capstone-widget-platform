@@ -7,7 +7,7 @@
 |---|---|
 | Python compilation (`compileall`) | Passed |
 | JavaScript syntax (`node --check`) | Passed |
-| Automated pytest suite | 4 passed |
+| Automated pytest suite | 40 passed, 90% coverage |
 | Alembic migration consistency | Passed |
 | Git whitespace validation | Passed |
 | PostgreSQL connection and migrations | Verified |
@@ -106,14 +106,22 @@ python -m pytest -v
 
 Tests:
 
-| Test | Result |
-|---|---|
-| `test_successful_delivery` | Passed |
-| `test_retry_after_delivery_failure` | Passed |
-| `test_permanent_failure_alert` | Passed |
-| `test_recover_expired_processing_job` | Passed |
+| Test module | Tests | Result |
+|---|---:|---|
+| `tests/test_api.py` | 15 | All passed |
+| `tests/test_body_limit.py` | 5 | All passed |
+| `tests/test_geo.py` | 10 | All passed |
+| `tests/test_notifications.py` | 10 | All passed |
+| **Total** | **40** | **All passed** |
 
-Total: 4 passed.
+Coverage command:
+
+```bash
+python -m pytest --cov=app --cov-report=term-missing -v
+```
+
+Latest result: **40 passed, 90% application coverage**.
+
 
 ## 6. Database and Migration Verification
 
@@ -145,7 +153,7 @@ The public widget configuration endpoint supports ETag-based conditional request
 
 ## 8. Known Limitations and Future Improvements
 
-- The automated test suite currently focuses on notification-worker behavior; broader API integration tests should be added.
+- The automated suite covers API integration, request-size limits, geo-enrichment, and notification-worker behavior. Additional edge-case and production-load tests remain useful.
 - Tenant isolation, rate limiting, payload-size handling, and cross-origin behavior have also been manually verified.
 - SMTP delivery requires external SMTP configuration and has not been established as a production email service.
 - The owner interface currently exposes dashboard APIs rather than a complete graphical dashboard.

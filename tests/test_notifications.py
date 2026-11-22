@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from types import SimpleNamespace
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -176,3 +177,142 @@ def test_recover_expired_processing_job(db_setup, monkeypatch):
     job = get_job(db_setup)
     assert job.status == "skipped"
     assert job.attempts == 2
+
+
+def make_submission():
+    return SimpleNamespace(
+        id="test-submission",
+        widget_id="test-widget",
+        data={"name": "Test Lead", "email": "test@example.com"},
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+def test_webhook_delivery_sends_payload_and_idempotency_key(monkeypatch):
+    calls = {}
+
+    class Response:
+        def raise_for_status(self):
+            calls["raised"] = True
+
+    def fake_post(url, **kwargs):
+        calls["url"] = url
+        calls.update(kwargs)
+        return Response()
+
+    monkeypatch.setattr(worker.httpx, "post", fake_post)
+    monkeypatch.setattr(
+        worker.settings,
+        "NOTIFICATION_WEBHOOK_URL",
+        "https://example.com/webhook",
+    )
+    monkeypatch.setattr(worker.settings, "NOTIFICATION_EMAIL_TO", "")
+
+    worker.deliver_notification(make_submission())
+
+    assert calls["json"]["event"] == "lead.created"
+    assert calls["json"]["submission_id"] == "test-submission"
+    assert calls["headers"]["Idempotency-Key"] == "test-submission"
+    assert calls["raised"] is True
+
+
+def test_email_notification_calls_send_email(monkeypatch):
+    sent = []
+
+    monkeypatch.setattr(worker.settings, "NOTIFICATION_WEBHOOK_URL", "")
+    monkeypatch.setattr(
+        worker.settings,
+        "NOTIFICATION_EMAIL_TO",
+        "owner@example.com",
+    )
+    monkeypatch.setattr(
+        worker,
+        "send_email",
+        lambda *args: sent.append(args),
+    )
+
+    worker.deliver_notification(make_submission())
+
+    assert len(sent) == 1
+    assert sent[0][0] == "owner@example.com"
+    assert "New widget lead" in sent[0][1]
+    assert "Test Lead" in sent[0][2]
+
+
+def test_no_destination_skips_delivery(monkeypatch, caplog):
+    monkeypatch.setattr(worker.settings, "NOTIFICATION_WEBHOOK_URL", "")
+    monkeypatch.setattr(worker.settings, "NOTIFICATION_EMAIL_TO", "")
+
+    with caplog.at_level("INFO", logger=worker.__name__):
+        worker.deliver_notification(make_submission())
+
+    assert "No notification destination configured" in caplog.text
+
+
+def test_send_email_uses_smtp(monkeypatch):
+    calls = {}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            calls["connection"] = (host, port, timeout)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def starttls(self):
+            calls["tls"] = True
+
+        def login(self, username, password):
+            calls["login"] = (username, password)
+
+        def send_message(self, message):
+            calls["message"] = message
+
+    monkeypatch.setattr(worker.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(worker.settings, "SMTP_HOST", "smtp.example.com")
+    monkeypatch.setattr(worker.settings, "SMTP_PORT", 587)
+    monkeypatch.setattr(worker.settings, "SMTP_FROM_EMAIL", "noreply@example.com")
+    monkeypatch.setattr(worker.settings, "SMTP_USE_TLS", True)
+    monkeypatch.setattr(worker.settings, "SMTP_USERNAME", "smtp-user")
+    monkeypatch.setattr(worker.settings, "SMTP_PASSWORD", "test-password")
+
+    worker.send_email("owner@example.com", "Test subject", "Test body")
+
+    assert calls["connection"] == ("smtp.example.com", 587, 10)
+    assert calls["tls"] is True
+    assert calls["login"] == ("smtp-user", "test-password")
+    assert calls["message"]["To"] == "owner@example.com"
+    assert calls["message"]["Subject"] == "Test subject"
+
+
+def test_send_email_rejects_missing_configuration(monkeypatch):
+    monkeypatch.setattr(worker.settings, "SMTP_HOST", "")
+    monkeypatch.setattr(worker.settings, "SMTP_FROM_EMAIL", "")
+
+    with pytest.raises(RuntimeError, match="SMTP is not configured"):
+        worker.send_email("owner@example.com", "Subject", "Body")
+
+
+def test_terminal_failure_sends_alert_email(monkeypatch):
+    sent = []
+
+    monkeypatch.setattr(
+        worker.settings,
+        "NOTIFICATION_FAILURE_ALERT_EMAIL",
+        "alerts@example.com",
+    )
+    monkeypatch.setattr(
+        worker,
+        "send_email",
+        lambda *args: sent.append(args),
+    )
+
+    worker.alert_terminal_failure("job-123", "Delivery failed")
+
+    assert len(sent) == 1
+    assert sent[0][0] == "alerts@example.com"
+    assert "permanently failed" in sent[0][1]
+    assert "job-123" in sent[0][2]
