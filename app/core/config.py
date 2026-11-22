@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     FRONTEND_ORIGIN: str = "http://localhost:5500"
     RATE_LIMIT_PER_MINUTE: int = 10
+    AUTH_LOGIN_RATE_LIMIT_PER_MINUTE: int = 5
+    AUTH_REGISTER_RATE_LIMIT_PER_MINUTE: int = 3
 
     NOTIFICATION_WEBHOOK_URL: str = ""
     NOTIFICATION_EMAIL_TO: str = ""
