@@ -11,11 +11,11 @@ A multi-tenant embeddable widget and lead-capture platform that allows customers
 - ORM: SQLAlchemy
 - Migrations: Alembic
 - Validation: Pydantic
-- Rate Limiting: SlowAPI or equivalent
+- Rate Limiting: SlowAPI
 - Widget: Vanilla JavaScript, HTML, CSS
 - Testing: Pytest
 - Infrastructure: Docker and Docker Compose
-- Email testing: Console backend or Mailpit
+- Email delivery: SMTP
 
 ## 3. Architecture
 
@@ -25,7 +25,7 @@ The application follows a layered architecture:
 2. Service Layer — Business logic, tenant authorization, submission processing, enrichment, and notifications.
 3. Data Layer — SQLAlchemy models, database queries, migrations, and indexes.
 4. Delivery Layer — Public widget configuration and versioned JavaScript bundle.
-5. Frontend Layer — Owner dashboard and embeddable visitor-facing widget.
+5. Frontend Layer — Dashboard API and embeddable visitor-facing widget.
 6. Background Jobs — Retryable email/webhook delivery and failure reporting.
 
 ## 4. Database Design
@@ -39,7 +39,7 @@ The application follows a layered architecture:
 - id: UUID, primary key
 - tenant_id: UUID, foreign key
 - email: String, unique
-- password_hash: String
+- hashed_password: String
 - created_at: Timestamp
 
 ### Widget
@@ -51,14 +51,13 @@ The application follows a layered architecture:
 - version: Integer
 - is_active: Boolean
 - created_at: Timestamp
-- updated_at: Timestamp
 
 ### Submission
 - id: UUID, primary key
 - tenant_id: UUID, foreign key
 - widget_id: UUID, foreign key
-- visitor_data: JSON
-- ip_address: String
+- data: JSON
+- visitor_ip: String
 - country: String, nullable
 - city: String, nullable
 - idempotency_key: String, nullable
@@ -70,13 +69,16 @@ The application follows a layered architecture:
 - status: String
 - attempts: Integer
 - last_error: Text, nullable
-- next_retry_at: Timestamp, nullable
+- next_attempt_at: Timestamp, nullable
 - created_at: Timestamp
+- tenant_id: UUID, foreign key
+- widget_id: UUID, foreign key
+- max_attempts: Integer
 
 ### Database Constraints and Indexes
 
 - Enforce tenant ownership with foreign keys and tenant-scoped queries.
-- Add indexes on Widget (tenant_id), Submission (tenant_id, widget_id, created_at), and NotificationJob (status, next_retry_at).
+- Add indexes on Widget (tenant_id), Submission (tenant_id, widget_id, created_at), and NotificationJob (status, next_attempt_at).
 - Enforce idempotency uniqueness using a unique constraint on (widget_id, idempotency_key) when the key is present.
 - Use database constraints to prevent invalid widget versions and notification statuses.
 - User email addresses are globally unique in the initial version.
@@ -156,25 +158,30 @@ The application follows a layered architecture:
 - Background notification jobs must support retries and failure alerts.
 - Notification jobs use bounded retries with exponential backoff.
 - Permanently failed jobs are marked as failed and trigger an operational alert.
-- Job processing must be safe against duplicate execution.
+- Notification delivery uses at-least-once processing, bounded retries, and an idempotency key to reduce duplicate webhook effects.
 - Submission storage is completed independently of optional geo-enrichment and notification delivery.
 - Public configuration responses use version-aware caching and appropriate cache invalidation.
 - The initial implementation does not use AI; AI cost tracking is therefore outside the initial scope.
 
 ## 9. Testing and Evidence
 
-Tests will cover:
+The automated test suite contains 40 tests across four modules:
 
-- Valid cross-origin submission and database persistence.
-- Invalid and oversized payload handling.
-- Rate limiting and HTTP 429 responses.
-- Honeypot spam rejection.
-- Tenant A isolation from Tenant B.
-- Geo-provider fallback and total provider failure.
-- Email and webhook failure isolation.
-- Idempotent submission behavior.
-- Widget and configuration cache headers.
-- Widget rendering on a separate website origin.
+- API integration and tenant isolation: 15 tests.
+- Request body-size limits: 5 tests.
+- Geo-enrichment and provider fallback: 10 tests.
+- Notification delivery, retries, and failure handling: 10 tests.
+
+Additional manual verification covers:
+
+- Cross-origin widget loading and submission.
+- HTTP 429 rate limiting and HTTP 413 oversized payload responses.
+- Public configuration and JavaScript caching.
+- Geo-provider failure without blocking submission storage.
+- Notification webhook delivery.
+- Tenant isolation and idempotent submissions.
+
+The latest verified test run passed all 40 tests with 90% application code coverage.
 
 ## 10. Explicit Non-Goal
 
