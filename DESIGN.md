@@ -113,28 +113,36 @@ The application follows a layered architecture:
 11. Notification work is queued separately and retried on failure.
 12. Owner views submissions and analytics in the dashboard.
 
+
 ## 7. API Contracts
 
-### Authentication and Widget Management
+### Authentication
 - POST /api/auth/register
 - POST /api/auth/login
-- GET /api/widgets
+
+### Widget Management (Authenticated)
 - POST /api/widgets
+- GET /api/widgets
 - GET /api/widgets/{widget_id}
 - PATCH /api/widgets/{widget_id}
 - DELETE /api/widgets/{widget_id}
 
 ### Public Widget Delivery
-- GET /public/widgets/{widget_id}/config
-- GET /widget.js
+- GET /api/public/widgets/{public_id}/config
+- GET /widget/v1/widget.js
 
-### Public Submission
-- POST /public/widgets/{widget_id}/submissions
+### Public Lead Submission
+- OPTIONS /api/public/widgets/{public_id}/submissions
+- POST /api/public/widgets/{public_id}/submissions
 
-### Dashboard
-- GET /api/submissions
-- GET /api/analytics/overview
-- GET /api/analytics/widgets/{widget_id}
+### Owner Dashboard (Authenticated)
+- GET /api/dashboard/submissions
+- GET /api/dashboard/stats
+
+### Health
+- GET /
+- GET /health
+
 
 ## 8. Reliability and Performance
 
