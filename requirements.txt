@@ -10,3 +10,4 @@ email-validator
 httpx
 pytest
 PyJWT==2.15.1
+pwdlib[argon2]==0.4.2
