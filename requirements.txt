@@ -9,5 +9,4 @@ slowapi
 email-validator
 httpx
 pytest
-pytest-cov
-pytest-asyncio
+PyJWT==2.15.1
