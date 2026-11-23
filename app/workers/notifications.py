@@ -182,6 +182,26 @@ def process_one_job() -> bool:
 
         return True
 
+def run_batch(max_jobs: int = 10) -> None:
+    """Process a finite batch of notification jobs and exit."""
+    logger.info("Scheduled notification batch started")
+
+    processed_count = 0
+
+    while processed_count < max_jobs:
+        processed = process_one_job()
+
+        if not processed:
+            break
+
+        processed_count += 1
+
+    logger.info(
+        "Scheduled notification batch finished; processed %s jobs",
+        processed_count,
+    )
+
+
 
 def main() -> None:
     logger.info("Notification worker started")
